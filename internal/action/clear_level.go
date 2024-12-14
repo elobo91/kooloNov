@@ -18,12 +18,19 @@ func ClearCurrentLevel(openChests bool, filter data.MonsterFilter) error {
 	rooms := ctx.PathFinder.OptimizeRoomsTraverseOrder()
 	for _, r := range rooms {
 		err := clearRoom(r, filter)
-		if err != nil {
+		if err != nil && err.Error() != "" {
 			ctx.Logger.Warn("Failed to clear room: %v", err)
 		}
 
 		if !openChests {
 			continue
+		}
+
+		// Return to town if down to last key
+		if town.ShouldBuyKeys() {
+			if err := action.InRunReturnTownRoutine(); err != nil {
+				return err
+			}
 		}
 
 		for _, o := range ctx.Data.Objects {
@@ -39,8 +46,13 @@ func ClearCurrentLevel(openChests bool, filter data.MonsterFilter) error {
 				})
 				if err != nil {
 					ctx.Logger.Warn("Failed interacting with chest: %v", err)
+				} else {
+					// Try to pickup any keys that may have dropped
+					if err := town.PickupKeys(); err != nil {
+						ctx.Logger.Warn("Failed picking up keys: %v", err)
+					}
 				}
-				utils.Sleep(500) // Add small delay to allow the game to open the chest and drop the content
+				utils.Sleep(500)
 			}
 		}
 	}
